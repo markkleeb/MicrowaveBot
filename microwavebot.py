@@ -5,7 +5,7 @@ from twython import TwythonStreamer, Twython
 import os, urllib2
 
 #search filter for twitter
-TERMS = '@MicrowaveBot2k'
+TERMS = '@HotPocketBot'
 
 
 #Set up pins:
@@ -13,6 +13,7 @@ TERMS = '@MicrowaveBot2k'
 #23 = start/pause
 #24 = stop/clear
 #22 = door open/closed
+#21 = solenoid
 
 GPIO.setmode(GPIO.BCM)
 GPIO.setup(25, GPIO.OUT)
@@ -22,6 +23,8 @@ GPIO.output(23, GPIO.LOW)
 GPIO.setup(24, GPIO.OUT)
 GPIO.output(24, GPIO.LOW)
 GPIO.setup(22, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+GPIO.setup(21, GPIO.OUT)
+GPIO.output(21, GPIO.HIGH)
 
 #are we connected to wifi?
 connected = False
@@ -51,14 +54,15 @@ while (connected==False):
 		stri = "https://www.google.com"
 		data = urllib2.urlopen(stri)
 		print "Connected"
-		speak = True
 		tweetText = "Connected"
+		speak = True
+		
 		connected = True
 	#TTS not working here, diagnose
 	except:
 		print "not connected"
-		speak = True
 		tweetText = "Cannot connect to internet"
+		speak = True
 		connected = False
 		time.sleep(3)
 
@@ -113,6 +117,7 @@ class Timer(threading.Thread):
 		global stalling
 		global cooking
 		global doorOpen
+		global userid
 		while True:
 			#Are we done cooking?
 			if((time.time() - cookTime) > (totalTime) and cookTime != 0 and cooking == True and doorOpen ==False):
@@ -127,14 +132,16 @@ class Timer(threading.Thread):
 				elapsedTime = 0
 				tweetTime = 0
 				totalTime = 180
+				tweetText = userid + "please enjoy your Hot Pocket"
+				speak = True
 				#send tweet to user that food is done
 				try:
-					twitter.update_status(status="Hey @" +userid+" Your food is done! The current time is " + time.strftime("%H:%M:%S"))
+					twitter.update_status(status="Hey @" +userid+" it's done! Now's the hard part, the 2 min cool down. Watch this to keep your hands from stuffing your face. " +  time.strftime("%H:%M:%S"))
 				except:
 					print "Error updating status"
 
 			#Are we paused?
-			elif(time.time() - tweetTime > 40 and tweetTime !=0 and cooking== True and doorOpen == False):
+			elif(time.time() - tweetTime > 30 and tweetTime !=0 and cooking== True and doorOpen == False):
 				cooking = False
 				stalling = True
 				#Save elapsed time to variable
@@ -149,21 +156,32 @@ class Timer(threading.Thread):
 				time.sleep(0.1)
 				GPIO.output(23, GPIO.LOW)
 				tweetTime = 0
+				tweetText = "no tweet no heat"
+				speak = True
 				#Send tweet to user that we are paused
 				try:
-					twitter.update_status(status="@" +userid+" I paused your timer. There are " + str(int(totalTime)) + " seconds left to cook. The current time is " + time.strftime("%H:%M:%S"))
+					twitter.update_status(status="Alright @" +userid+", no tweet=no heat. There are " + str(int(totalTime)) + " seconds left to cook. " + time.strftime("%H:%M:%S"))
 				except:
 					print "Error updating status"
 
-			#Are we stalling? (paused for longer than 20 seconds)
-			elif(time.time() - stallTime > 20 and stalling == True and doorOpen == False):
+			#Are we stalling? (paused for longer than 30 seconds)
+			elif(time.time() - stallTime > 30 and stalling == True and doorOpen == False):
 				stallTime = time.time()
-				print "stalled out"
+				print "pity heat"
+				tweetTime = time.time()
+				cookTime = time.time()
+				stalling = False
 				#Send tweet to user, reset StallTime
 				try:
-					twitter.update_status(status="Hey @" + userid + "! Send me a tweet! Your hot pocket is getting cold! The current time is " + time.strftime("%H:%M:%S")) 
+					twitter.update_status(status="You disgust me @" + userid + ", here's 30 seconds of pity heat " + time.strftime("%H:%M:%S")) 
 				except:
 					print "error updating status"
+				#Send pulse on start/pause button
+				GPIO.output(23, GPIO.HIGH)
+				time.sleep(0.1)
+				GPIO.output(23, GPIO.LOW)
+				#Flip cooking boolean
+				cooking = True
 
 		
 
@@ -224,7 +242,7 @@ class BlinkyStreamer(TwythonStreamer):
 			#Are we at the beginning?
 			if(cookTime == 0 and tweetTime == 0 and cooking == False and doorOpen == False):
 				try:
-					twitter.update_status(status="Hey @" + userid + " I got your tweet at " + time.strftime("%H:%M:%S") + "! Starting to cook now for "+str(int(totalTime))+ " seconds : )")
+					twitter.update_status(status="Awesome @" + userid + "! Starting to cook now for "+str(int(totalTime))+ " seconds. Tweet til your Hot Pocket is hot." + time.strftime("%H:%M:%S"))
 				except:
 					print "Error updating status"
 				
@@ -265,7 +283,7 @@ class BlinkyStreamer(TwythonStreamer):
 				print "added 30 seconds"
 				#send tweet response
 				try:
-					twitter.update_status(status="Sweet @" +userid+" I'll keep on cooking! There's only " + str(int(totalTime -(time.time()-cookTime))) + " seconds left. The current time is " + time.strftime("%H:%M:%S"))
+					twitter.update_status(status="Nice @" +userid+", Awesome tweets like that keep me hot. There's only " + str(int(totalTime -(time.time()-cookTime))) + " seconds left. The current time is " + time.strftime("%H:%M:%S"))
 				except:
 					print "Error updating status"
 
@@ -294,7 +312,7 @@ if(connected):
 	#Start threads (after connecting to wifi)
 	timerThread = Timer(1)
 	timerThread.start()
-
+	twitter.update_status(status="I am awake and ready to tweet! Did you remember to load a hot pocket? The current time is " + time.strftime("%H:%M:%S"))
 
 	try:
 		#Connect to twitter stream, filter by TERMS
