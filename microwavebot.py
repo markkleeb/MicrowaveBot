@@ -126,6 +126,7 @@ class Timer(threading.Thread):
 				cookTime = 0
 				elapsedTime = 0
 				tweetTime = 0
+				totalTime = 180
 				#send tweet to user that food is done
 				try:
 					twitter.update_status(status="Hey @" +userid+" Your food is done! The current time is " + time.strftime("%H:%M:%S"))
