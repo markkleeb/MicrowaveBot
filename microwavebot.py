@@ -23,8 +23,8 @@ GPIO.output(23, GPIO.LOW)
 GPIO.setup(24, GPIO.OUT)
 GPIO.output(24, GPIO.LOW)
 GPIO.setup(22, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-GPIO.setup(21, GPIO.OUT)
-GPIO.output(21, GPIO.HIGH)
+GPIO.setup(17, GPIO.OUT)
+GPIO.output(17, GPIO.HIGH)
 
 #are we connected to wifi?
 connected = False
@@ -118,6 +118,8 @@ class Timer(threading.Thread):
 		global cooking
 		global doorOpen
 		global userid
+		global tweetText
+		global speak
 		while True:
 			#Are we done cooking?
 			if((time.time() - cookTime) > (totalTime) and cookTime != 0 and cooking == True and doorOpen ==False):
@@ -132,13 +134,16 @@ class Timer(threading.Thread):
 				elapsedTime = 0
 				tweetTime = 0
 				totalTime = 180
-				tweetText = userid + "please enjoy your Hot Pocket"
+				tweetText = "Please enjoy your Hot Pocket"
 				speak = True
 				#send tweet to user that food is done
 				try:
 					twitter.update_status(status="Hey @" +userid+" it's done! Now's the hard part, the 2 min cool down. Watch this to keep your hands from stuffing your face. " +  time.strftime("%H:%M:%S"))
 				except:
 					print "Error updating status"
+				GPIO.output(17, GPIO.LOW)
+				time.sleep(4)
+				GPIO.output(17, GPIO.HIGH)
 
 			#Are we paused?
 			elif(time.time() - tweetTime > 30 and tweetTime !=0 and cooking== True and doorOpen == False):
@@ -147,7 +152,7 @@ class Timer(threading.Thread):
 				#Save elapsed time to variable
 				elapsedTime = time.time() - cookTime
 				#Subtract from totalTime left to cook, add 0.5s for lag
-				totalTime = totalTime - elapsedTime+ 0.5
+				totalTime = totalTime - elapsedTime+ 1
 				print "Pausing..."
 				#Start stallTime variable
 				stallTime = time.time()
@@ -170,6 +175,8 @@ class Timer(threading.Thread):
 				print "pity heat"
 				tweetTime = time.time()
 				cookTime = time.time()
+				tweetText = "Pity heat"
+				speak = True
 				stalling = False
 				#Send tweet to user, reset StallTime
 				try:
@@ -235,7 +242,7 @@ class BlinkyStreamer(TwythonStreamer):
 		if 'text' in data:
 			print data['text'].encode('utf-8')
 			splitText = data['text'].split(' ', 1)[1]
-			tweetText = splitText
+			tweetText = splitText.replace("'", "")
 			speak = True
 
 
@@ -292,7 +299,7 @@ class BlinkyStreamer(TwythonStreamer):
 	#Twitter stream error - 420 usually
 	def on_error(self, status_code, data):
 		#send tweet to chill out for a bit and restart the Pi
-		twitter.update_status(status="Hey @kleeb930 chill out for a minute - we're being blocked out! Maybe give me a reset " + time.strftime("%H:%M:%S"))
+		twitter.update_status(status="Hey chill out for a minute - we're being blocked out! Maybe give me a reset " + time.strftime("%H:%M:%S"))
 		print status_code
 		print data
 		GPIO.cleanup()
